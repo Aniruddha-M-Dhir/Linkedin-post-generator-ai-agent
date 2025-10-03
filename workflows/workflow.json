@@ -1,0 +1,483 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-580, 1060],
+      "id": "4f4783ab-a009-4b85-8731-e7fe928da952",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "CREDENTIAL_ID_GOES_HERE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "fromEmail": "YOUR_SENDER_EMAIL@EXAMPLE.COM",
+        "toEmail": "YOUR_REVIEWER_EMAIL@EXAMPLE.COM",
+        "subject": "Weekly LinkedIn Post – Review & Approve",
+        "message": "=Hi team 👋,\n\nHere's the generated LinkedIn post draft for this week:\n\n<blockquote>\n{{$json[\"text\"]}}\n</blockquote>\n\nPlease choose an option below to approve or reject.\n\nThanks, \t\nLinkedin AI Agent 🤖\n",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [-200, 320],
+      "id": "0b83721b-6123-4828-9ea5-14f3dd4aaead",
+      "name": "Send Email for Approval",
+      "webhookId": "WEBHOOK_ID_GOES_HERE"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{$json.data.approved ? 0 : 1}}\n"
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [0, 320],
+      "id": "a616b515-f457-49c2-9c6c-5ff735034029",
+      "name": "Check for Approval"
+    },
+    {
+      "parameters": {
+        "fromEmail": "YOUR_SENDER_EMAIL@EXAMPLE.COM",
+        "toEmail": "YOUR_REVIEWER_EMAIL@EXAMPLE.COM",
+        "subject": "✅ LinkedIn Post Approved",
+        "emailFormat": "text",
+        "text": "=Hi team,\n\nThe LinkedIn post has been approved 🎉\n\nHere’s the final version that will be scheduled or posted:\n\n{{ $('Create the Post').item.json.text }}\n\n(If this was a retry, the new text is: {{ $('Remake the post').item.json.text || 'N/A' }})\n\nYou can log it, archive it, or schedule it for publication.\n\n– Linkedin AI Workflow",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [220, 220],
+      "id": "6f8f4e57-1650-49f5-a7fb-9e8f36e3e0d8",
+      "name": "Confirmation Email Before Posting",
+      "webhookId": "WEBHOOK_ID_GOES_HERE"
+    },
+    {
+      "parameters": {
+        "tableId": "linkedin_post_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "rejected"
+            },
+            {
+              "fieldId": "post_text",
+              "fieldValue": "={{ $('Create the Post').item.json.text }}"
+            },
+            {
+              "fieldId": "submitted_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "rejection_reason",
+              "fieldValue": "Auto-generated post did not meet reviewer quality standards."
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [220, 420],
+      "id": "5a3039a9-d963-4c44-8961-9e19080a2225",
+      "name": "Rejection Log"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the social media voice of a tech startup that uploads tech updates on social media. Write a professional yet friendly and inspiring LinkedIn post using the following information from this past week: \tHighlights: {{$json[\"highlights\"]}} \tMilestones: {{$json[\"milestones\"]}} \tIntern Reflections: {{$json[\"reflections\"]}} \tGuidelines: - Keep the tone authentic, thoughtful, and human. - Use emojis sparingly but meaningfully. - Keep the post under 250 words. - End with a call to action (e.g., follow, comment, or check out a project). - Include relevant hashtags (e.g., #startuplife, #internships, #AI, #buildinpublic). \tOutput a single LinkedIn-ready paragraph with no title.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [-600, 880],
+      "id": "1e008caa-09dd-4207-bdb0-ec4a00733416",
+      "name": "Create the Post"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "828cf4b1-058c-419d-8250-f9e5ca76d0f0",
+              "name": "prompt",
+              "value": "=The following LinkedIn post was rejected. Please rewrite it to be more professional, engaging, and suitable for the startup. Maintain clarity, keep it under 150 words, and make it sound less robotic.\n\nOriginal post:\n{{ $('Create the Post').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "2069bda7-3f68-4d9e-a876-5aebf0d8150c",
+              "name": "retry_count",
+              "value": "=retry_count = {{ $json.retry_count ? $json.retry_count + 1 : 1 }}\n",
+              "type": "number"
+            },
+            {
+              "id": "9746e556-9e6b-4e1b-be4c-2831b14a938a",
+              "name": "post_text",
+              "value": "={{ $('Remake the post').item.json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 420],
+      "id": "1a819c24-1e41-4a84-96fb-f2bb31182e63",
+      "name": "Reformat the prompt"
+    },
+    {
+      "parameters": {
+        "fromEmail": "YOUR_SENDER_EMAIL@EXAMPLE.COM",
+        "toEmail": "YOUR_REVIEWER_EMAIL@EXAMPLE.COM",
+        "subject": "❗️LinkedIn Post Rejected 3x – Needs Manual Review",
+        "html": "=Hi team,\n\nThis LinkedIn post has been rejected <strong>3 times</strong> and now requires human review.\n\n<hr>\n<p><strong>Last AI-generated version:</strong></p>\n<blockquote>\n{{$json[\"post_text\"]}}\n</blockquote>\n\n<p>Please revise this manually and resubmit it manually to LinkedIn</p>\n\nThanks,<br>\n AI Agent 🤖\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [880, 500],
+      "id": "845c4ef6-2a5a-486c-8f76-5520d338c597",
+      "name": "Final Rejection Email (Manual Assistance Required)",
+      "webhookId": "WEBHOOK_ID_GOES_HERE"
+    },
+    {
+      "parameters": {
+        "person": "AzZYLJVnRR",
+        "text": "={{ $('Create the Post').item.json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [440, 220],
+      "id": "6f9a5f29-033b-4829-88f8-806ef8e25df8",
+      "name": "LinkedIn"
+    },
+    {
+      "parameters": {
+        "formTitle": "Social Media Form",
+        "formDescription": "Submit your weekly update to auto-generate a LinkedIn post.\n",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Topic",
+              "placeholder": "Weekly AI Summary",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "hashtags",
+              "placeholder": "#Dreamable #AI",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "highlights",
+              "fieldType": "textarea",
+              "placeholder": "What did the team accomplish?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "milestones",
+              "fieldType": "textarea",
+              "placeholder": "What did the intern(s) learn or enjoy?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "reflections",
+              "fieldType": "textarea",
+              "placeholder": "What did the intern(s) learn or enjoy?",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [-1040, 400],
+      "id": "3b7cda3c-8755-493b-888f-4b13bde92665",
+      "name": "On form submission",
+      "webhookId": "WEBHOOK_ID_GOES_HERE"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2b63ae3b-35cd-4383-bc80-8e0bc7aae32b",
+              "leftValue": "={{$json.retry_count}}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 500],
+      "id": "285e39ba-6b9d-4741-b354-626aca8d428d",
+      "name": "Check # of Rejections"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c7804ccf-0458-4a05-a077-6d94a755fb3c",
+              "name": "hashtags",
+              "value": "={{ $json.hashtags }}",
+              "type": "string"
+            },
+            {
+              "id": "3a847f67-096e-4215-a2be-95fbd1260344",
+              "name": "highlights",
+              "value": "={{ $json.highlights }}",
+              "type": "string"
+            },
+            {
+              "id": "b7cec6ae-dd18-4ec7-9f44-11630c01def7",
+              "name": "milestones",
+              "value": "={{ $json.milestones }}",
+              "type": "string"
+            },
+            {
+              "id": "f306e295-15a5-40f3-a14d-45768f51427d",
+              "name": "topics",
+              "value": "={{ $json.Topic }}",
+              "type": "string"
+            },
+            {
+              "id": "6a926ce2-e859-4785-aaa5-c94bd690ed00",
+              "name": "reflections",
+              "value": "={{ $json.reflections }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-820, 400],
+      "id": "156dca10-70c5-44eb-8291-1661227c8802",
+      "name": "Get Data From the Form"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=The following LinkedIn post was rejected by a reviewer:\n\"{{ $('Create the Post').item.json.text }}\"\"\n\nPlease rewrite the post with the following improvements:\n- Make it more professional and aligned with the startup\n- Ensure it's clear, human, and thoughtfully written\n- Use emojis sparingly but meaningfully\n- Keep it under 250 words\n- End with a call to action (e.g., follow, comment, explore)\n\nOutput a single, LinkedIn-ready paragraph with no title or label. Use an authentic and inspiring tone.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [-180, 700],
+      "id": "44ca6247-44a5-46dd-afd2-4d8e491258e9",
+      "name": "Remake the post"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-200, 920],
+      "id": "245d5dff-4958-4c30-9eb8-6d5ba36d42ee",
+      "name": "OpenAI Chat Model1"
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Create the Post",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email for Approval": {
+      "main": [
+        [
+          {
+            "node": "Check for Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Approval": {
+      "main": [
+        [
+          {
+            "node": "Confirmation Email Before Posting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejection Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation Email Before Posting": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rejection Log": {
+      "main": [
+        [
+          {
+            "node": "Reformat the prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create the Post": {
+      "main": [
+        [
+          {
+            "node": "Send Email for Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reformat the prompt": {
+      "main": [
+        [
+          {
+            "node": "Check # of Rejections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Get Data From the Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check # of Rejections": {
+      "main": [
+        [
+          {
+            "node": "Remake the post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Final Rejection Email (Manual Assistance Required)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Data From the Form": {
+      "main": [
+        [
+          {
+            "node": "Create the Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remake the post": {
+      "main": [
+        [
+          {
+            "node": "Send Email for Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Remake the post",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn": {
+      "main": [
+        []
+      ]
+    },
+    "Final Rejection Email (Manual Assistance Required)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "1bc775a7b1b2146eb7884539a07f64ce5cc780f6d0e9b12504ef92b9bab1da9e"
+  }
+}
